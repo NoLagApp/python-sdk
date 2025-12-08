@@ -1,0 +1,83 @@
+"""
+NoLag SDK Types
+"""
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable, Literal, Optional
+
+
+class ConnectionStatus(str, Enum):
+    """Connection status"""
+    DISCONNECTED = "disconnected"
+    CONNECTING = "connecting"
+    CONNECTED = "connected"
+    RECONNECTING = "reconnecting"
+
+
+class ActorType(str, Enum):
+    """Actor types"""
+    DEVICE = "device"
+    USER = "user"
+    SERVER = "server"
+    SESSION = "session"
+
+
+class QoS(int, Enum):
+    """QoS levels for MQTT"""
+    AT_MOST_ONCE = 0
+    AT_LEAST_ONCE = 1
+    EXACTLY_ONCE = 2
+
+
+@dataclass
+class NoLagOptions:
+    """Connection options"""
+    url: str = "wss://broker.nolag.app/ws"
+    reconnect: bool = True
+    reconnect_interval: float = 5.0  # seconds
+    max_reconnect_attempts: int = 10
+    heartbeat_interval: float = 30.0  # seconds, 0 to disable
+    disconnect_on_hidden: bool = False
+    debug: bool = False
+    qos: QoS = QoS.AT_LEAST_ONCE
+    load_balance: bool = False
+    load_balance_group: Optional[str] = None
+    actor_token_id: Optional[str] = None
+
+
+@dataclass
+class SubscribeOptions:
+    """Subscribe options"""
+    qos: Optional[QoS] = None
+    load_balance: Optional[bool] = None
+    load_balance_group: Optional[str] = None
+
+
+@dataclass
+class EmitOptions:
+    """Emit/publish options"""
+    qos: Optional[QoS] = None
+    retain: bool = False
+
+
+@dataclass
+class MessageMeta:
+    """Message metadata"""
+    sender: Optional[str] = None
+    timestamp: Optional[float] = None
+
+
+@dataclass
+class ActorPresence:
+    """Actor presence info"""
+    actor_token_id: str
+    actor_type: ActorType
+    presence: dict[str, Any] = field(default_factory=dict)
+    joined_at: Optional[float] = None
+
+
+# Type aliases for callbacks
+MessageHandler = Callable[[Any, MessageMeta], None]
+EventHandler = Callable[..., None]
+AckCallback = Callable[[Optional[Exception]], None]
