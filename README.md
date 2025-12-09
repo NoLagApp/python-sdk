@@ -202,11 +202,82 @@ from nolag import (
 )
 ```
 
+## REST API Client
+
+The SDK also includes a REST API client for managing apps, rooms, and actors.
+
+```python
+import asyncio
+from nolag import NoLagApi, AppCreate, RoomCreate, ActorCreate
+
+async def main():
+    # Create API client with project-scoped API key
+    async with NoLagApi("nlg_live_xxx.secret") as api:
+        # List all apps in your project
+        apps = await api.apps.list()
+        print(f"Found {len(apps.data)} apps")
+
+        # Create a new app
+        app = await api.apps.create(AppCreate(
+            name="my-chat-app",
+            description="A real-time chat application"
+        ))
+        print(f"Created app: {app.app_id}")
+
+        # Create a room in the app
+        room = await api.rooms.create(app.app_id, RoomCreate(
+            name="general",
+            slug="general",
+            description="General chat room"
+        ))
+        print(f"Created room: {room.room_id}")
+
+        # Create an actor (IMPORTANT: save the access token!)
+        actor = await api.actors.create(ActorCreate(
+            name="web-client",
+            actor_type="device"
+        ))
+        print(f"Actor token (save this!): {actor.access_token}")
+
+        # Update an app
+        updated = await api.apps.update(app.app_id, AppUpdate(
+            description="Updated description"
+        ))
+
+        # Delete resources
+        await api.rooms.delete(app.app_id, room.room_id)
+        await api.actors.delete(actor.actor_token_id)
+        await api.apps.delete(app.app_id)
+
+asyncio.run(main())
+```
+
+### API Types
+
+```python
+from nolag import (
+    # API Client
+    NoLagApi,           # REST API client
+    NoLagApiError,      # API error class
+    NoLagApiOptions,    # API client options
+
+    # Resources
+    App, AppCreate, AppUpdate,
+    Room, RoomCreate, RoomUpdate,
+    Actor, ActorWithToken, ActorCreate, ActorUpdate,
+
+    # Utilities
+    ListOptions,        # Pagination options
+    PaginatedResult,    # Paginated response
+)
+```
+
 ## Requirements
 
 - Python 3.10+
 - websockets >= 12.0
 - msgpack >= 1.0.0
+- aiohttp >= 3.9.0
 
 ## License
 
