@@ -29,7 +29,7 @@ logger = logging.getLogger("nolag")
 
 class Room:
     """
-    Room - Scoped context for pub/sub within an app.room
+    Room - Scoped context for pub/sub within an app/room
 
     Example:
         room = client.set_app('chat').set_room('general')
@@ -45,11 +45,11 @@ class Room:
 
     @property
     def prefix(self) -> str:
-        """The full topic prefix (app.room)"""
-        return f"{self._app_name}.{self._room_name}"
+        """The full topic prefix (app/room)"""
+        return f"{self._app_name}/{self._room_name}"
 
     def _full_topic(self, topic: str) -> str:
-        return f"{self.prefix}.{topic}"
+        return f"{self.prefix}/{topic}"
 
     async def subscribe(
         self,
@@ -119,9 +119,9 @@ class NoLag:
         await room.emit('messages', {'text': 'Hello!'})
 
         # Direct API (full topic paths)
-        await client.subscribe('chat.general.messages')
-        client.on('chat.general.messages', lambda data, meta: print(data))
-        await client.emit('chat.general.messages', {'text': 'Hello!'})
+        await client.subscribe('chat/general/messages')
+        client.on('chat/general/messages', lambda data, meta: print(data))
+        await client.emit('chat/general/messages', {'text': 'Hello!'})
     """
 
     def __init__(self, token: str, options: Optional[NoLagOptions] = None):
@@ -352,6 +352,9 @@ class NoLag:
         if opts.retain:
             message["retain"] = True
 
+        # Add echo option (default True - you receive your own messages)
+        message["echo"] = opts.echo
+
         await self._send(message)
 
         if callback:
@@ -518,6 +521,8 @@ class NoLag:
             meta = MessageMeta(
                 sender=message.get("from"),
                 timestamp=message.get("timestamp"),
+                is_replay=message.get("isReplay", False),
+                msg_id=message.get("msgId"),
             )
 
             # Call topic handlers

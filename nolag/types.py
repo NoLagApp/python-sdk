@@ -59,6 +59,7 @@ class EmitOptions:
     """Emit/publish options"""
     qos: Optional[QoS] = None
     retain: bool = False
+    echo: bool = True  # Whether to receive this message back if subscribed
 
 
 @dataclass
@@ -66,6 +67,8 @@ class MessageMeta:
     """Message metadata"""
     sender: Optional[str] = None
     timestamp: Optional[float] = None
+    is_replay: bool = False  # Whether this message is being replayed from history
+    msg_id: Optional[str] = None  # Unique message ID for ACK
 
 
 @dataclass
