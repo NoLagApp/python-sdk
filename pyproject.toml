@@ -39,6 +39,9 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]
+webrtc = [
+    "aiortc>=1.6.0",
+]
 
 [project.urls]
 Homepage = "https://nolag.app"
