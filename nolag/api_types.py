@@ -121,6 +121,7 @@ class Room:
     description: Optional[str] = None
     room_type: Optional[RoomType] = None
     is_enabled: bool = True
+    topics: Optional[list[str]] = None
     config: Optional[dict[str, Any]] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -135,6 +136,7 @@ class Room:
             description=data.get("description"),
             room_type=data.get("roomType"),
             is_enabled=data.get("isEnabled", True),
+            topics=data.get("topics"),
             config=data.get("config"),
             created_at=data.get("createdAt"),
             updated_at=data.get("updatedAt"),
@@ -147,6 +149,7 @@ class RoomCreate:
     name: str
     slug: Optional[str] = None
     description: Optional[str] = None
+    topics: Optional[list[str]] = None
     config: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict:
@@ -155,6 +158,8 @@ class RoomCreate:
             result["slug"] = self.slug
         if self.description:
             result["description"] = self.description
+        if self.topics:
+            result["topics"] = self.topics
         if self.config:
             result["config"] = self.config
         return result
@@ -166,6 +171,7 @@ class RoomUpdate:
     name: Optional[str] = None
     description: Optional[str] = None
     is_enabled: Optional[bool] = None
+    topics: Optional[list[str]] = None
     config: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict:
@@ -176,6 +182,8 @@ class RoomUpdate:
             result["description"] = self.description
         if self.is_enabled is not None:
             result["isEnabled"] = self.is_enabled
+        if self.topics is not None:
+            result["topics"] = self.topics
         if self.config is not None:
             result["config"] = self.config
         return result
