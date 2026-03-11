@@ -52,6 +52,7 @@ class SubscribeOptions:
     qos: Optional[QoS] = None
     load_balance: Optional[bool] = None
     load_balance_group: Optional[str] = None
+    filters: Optional[list[str]] = None
 
 
 @dataclass
@@ -60,6 +61,7 @@ class EmitOptions:
     qos: Optional[QoS] = None
     retain: bool = False
     echo: bool = True  # Whether to receive this message back if subscribed
+    filter: Optional[str] = None
 
 
 @dataclass
@@ -69,6 +71,7 @@ class MessageMeta:
     timestamp: Optional[float] = None
     is_replay: bool = False  # Whether this message is being replayed from history
     msg_id: Optional[str] = None  # Unique message ID for ACK
+    filter: Optional[str] = None  # Filter value this message was published with
 
 
 @dataclass

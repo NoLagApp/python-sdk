@@ -88,6 +88,33 @@ class Room:
         self._client.off(self._full_topic(topic), handler)
         return self
 
+    async def set_filters(
+        self,
+        topic: str,
+        filters: list[str],
+        callback: Optional[AckCallback] = None,
+    ) -> None:
+        """Replace all filters for a topic in this room"""
+        await self._client.set_filters(self._full_topic(topic), filters, callback)
+
+    async def add_filters(
+        self,
+        topic: str,
+        filters: list[str],
+        callback: Optional[AckCallback] = None,
+    ) -> None:
+        """Add filters to existing set for a topic in this room"""
+        await self._client.add_filters(self._full_topic(topic), filters, callback)
+
+    async def remove_filters(
+        self,
+        topic: str,
+        filters: list[str],
+        callback: Optional[AckCallback] = None,
+    ) -> None:
+        """Remove specific filters from a topic in this room"""
+        await self._client.remove_filters(self._full_topic(topic), filters, callback)
+
 
 class App:
     """App context for fluent API"""
@@ -148,6 +175,9 @@ class NoLag:
         self._event_handlers: dict[str, set[Callable]] = {}
         self._message_handlers: dict[str, set[MessageHandler]] = {}
         self._any_handlers: set[Callable[[str, Any, MessageMeta], None]] = set()
+
+        # Filter tracking
+        self._topic_filters: dict[str, set[str]] = {}
 
         # Auth promise
         self._auth_future: Optional[asyncio.Future] = None
@@ -298,10 +328,59 @@ class NoLag:
             group = opts.load_balance_group or self._options.load_balance_group or self._actor_token_id
             message["loadBalanceGroup"] = group
 
+        # Add filters
+        if opts.filters and len(opts.filters) > 0:
+            message["filters"] = opts.filters
+            self._topic_filters[topic] = set(opts.filters)
+
         await self._send(message)
 
         if callback:
             callback(None)
+
+    async def set_filters(
+        self,
+        topic: str,
+        filters: list[str],
+        callback: Optional[AckCallback] = None,
+    ) -> None:
+        """Replace all filters for a topic. Empty list switches to wildcard."""
+        if not self._ws or self._status != ConnectionStatus.CONNECTED:
+            if callback:
+                callback(Exception("Not connected"))
+            return
+
+        if filters:
+            self._topic_filters[topic] = set(filters)
+        else:
+            self._topic_filters.pop(topic, None)
+
+        await self._send({"type": "setFilters", "topic": topic, "filters": filters})
+
+        if callback:
+            callback(None)
+
+    async def add_filters(
+        self,
+        topic: str,
+        filters: list[str],
+        callback: Optional[AckCallback] = None,
+    ) -> None:
+        """Add filters to existing set for a topic."""
+        existing = self._topic_filters.get(topic, set())
+        existing.update(filters)
+        await self.set_filters(topic, list(existing), callback)
+
+    async def remove_filters(
+        self,
+        topic: str,
+        filters: list[str],
+        callback: Optional[AckCallback] = None,
+    ) -> None:
+        """Remove specific filters from a topic."""
+        existing = self._topic_filters.get(topic, set())
+        existing -= set(filters)
+        await self.set_filters(topic, list(existing), callback)
 
     async def unsubscribe(
         self,
@@ -318,6 +397,8 @@ class NoLag:
             "type": "unsubscribe",
             "topic": topic,
         }
+
+        self._topic_filters.pop(topic, None)
 
         await self._send(message)
 
@@ -354,6 +435,10 @@ class NoLag:
 
         # Add echo option (default True - you receive your own messages)
         message["echo"] = opts.echo
+
+        # Add filter
+        if opts.filter:
+            message["filter"] = opts.filter
 
         await self._send(message)
 
@@ -523,6 +608,7 @@ class NoLag:
                 timestamp=message.get("timestamp"),
                 is_replay=message.get("isReplay", False),
                 msg_id=message.get("msgId"),
+                filter=message.get("filter"),
             )
 
             # Call topic handlers
