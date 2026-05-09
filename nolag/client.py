@@ -9,7 +9,6 @@ from typing import Any, Callable, Optional
 
 import msgpack
 import websockets
-from websockets.client import WebSocketClientProtocol
 
 from .types import (
     ActorPresence,
@@ -255,7 +254,7 @@ class NoLag:
         self._token = token
         self._options = options or NoLagOptions()
 
-        self._ws: Optional[WebSocketClientProtocol] = None
+        self._ws: Optional[websockets.WebSocketClientProtocol] = None  # type: ignore[attr-defined]
         self._status = ConnectionStatus.DISCONNECTED
         self._reconnect_attempts = 0
         self._reconnect_task: Optional[asyncio.Task] = None
