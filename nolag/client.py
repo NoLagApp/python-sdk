@@ -17,6 +17,9 @@ from .types import (
     AckCallback,
     ConnectionStatus,
     EmitOptions,
+    LobbyPresenceEvent,
+    LobbyPresenceHandler,
+    LobbyPresenceState,
     MessageHandler,
     MessageMeta,
     NoLagOptions,
@@ -116,6 +119,100 @@ class Room:
         await self._client.remove_filters(self._full_topic(topic), filters, callback)
 
 
+class Lobby:
+    """
+    Lobby - Scoped context for observing presence across rooms
+
+    Lobbies are read-only - you can only observe presence, not publish to them.
+
+    Example:
+        lobby = client.set_app('my-app').set_lobby('online')
+        state = await lobby.subscribe()
+        lobby.on('presence:join', lambda e: print(e))
+    """
+
+    def __init__(self, client: "NoLag", lobby_id: str):
+        self._client = client
+        self._lobby_id = lobby_id
+
+    @property
+    def lobby_id(self) -> str:
+        return self._lobby_id
+
+    async def subscribe(self) -> LobbyPresenceState:
+        """Subscribe to this lobby's presence events. Returns a snapshot of current presence."""
+        if not self._client.connected:
+            raise Exception("Not connected")
+
+        future: asyncio.Future[LobbyPresenceState] = asyncio.get_event_loop().create_future()
+        event_key = f"lobbySubscribed:{self._lobby_id}"
+
+        def handler(*args):
+            if not future.done():
+                future.set_result(args[0] if args else {})
+                self._client.off(event_key, handler)
+
+        self._client.on(event_key, handler)
+        await self._client._send({
+            "type": "lobbySubscribe",
+            "lobbyId": self._lobby_id,
+        })
+
+        try:
+            return await asyncio.wait_for(future, timeout=10.0)
+        except asyncio.TimeoutError:
+            self._client.off(event_key, handler)
+            raise Exception("Lobby subscription timeout")
+
+    def unsubscribe(self) -> None:
+        """Unsubscribe from this lobby's presence events"""
+        if not self._client.connected:
+            return
+        asyncio.ensure_future(self._client._send({
+            "type": "lobbyUnsubscribe",
+            "lobbyId": self._lobby_id,
+        }))
+
+    async def fetch_presence(self) -> LobbyPresenceState:
+        """Fetch current presence state for the lobby"""
+        if not self._client.connected:
+            raise Exception("Not connected")
+
+        future: asyncio.Future[LobbyPresenceState] = asyncio.get_event_loop().create_future()
+        event_key = f"lobbyPresenceList:{self._lobby_id}"
+
+        def handler(*args):
+            if not future.done():
+                future.set_result(args[0] if args else {})
+                self._client.off(event_key, handler)
+
+        self._client.on(event_key, handler)
+        await self._client._send({
+            "type": "getLobbyPresence",
+            "lobbyId": self._lobby_id,
+        })
+
+        try:
+            return await asyncio.wait_for(future, timeout=10.0)
+        except asyncio.TimeoutError:
+            self._client.off(event_key, handler)
+            raise Exception("Lobby presence request timeout")
+
+    def on(self, event: str, handler: LobbyPresenceHandler) -> "Lobby":
+        """Listen for presence events in this lobby (e.g., 'presence:join')"""
+        event_type = event.replace("presence:", "")
+        event_key = f"lobby:{self._lobby_id}:presence:{event_type}"
+        self._client.on(event_key, handler)
+        return self
+
+    def off(self, event: str, handler: Optional[LobbyPresenceHandler] = None) -> "Lobby":
+        """Remove presence event handler"""
+        event_type = event.replace("presence:", "")
+        event_key = f"lobby:{self._lobby_id}:presence:{event_type}"
+        self._client.off(event_key, handler)
+        return self
+
+
 class App:
     """App context for fluent API"""
 
@@ -126,6 +223,10 @@ class App:
     def set_room(self, room_name: str) -> Room:
         """Set the room within this app"""
         return Room(self._client, self._app_name, room_name)
+
+    def set_lobby(self, lobby_id: str) -> Lobby:
+        """Set the lobby within this app"""
+        return Lobby(self._client, lobby_id)
 
 
 class NoLag:
@@ -454,8 +555,10 @@ class NoLag:
         For system events: 'connect', 'disconnect', 'reconnect', 'error'
         For message topics: the full topic path
         """
-        if event in ("connect", "disconnect", "reconnect", "error",
-                     "presence:join", "presence:leave", "presence:update"):
+        if (event in ("connect", "disconnect", "reconnect", "error",
+                     "presence:join", "presence:leave", "presence:update")
+                or event.startswith("lobby:") or event.startswith("lobbyPresence:")
+                or event.startswith("lobbySubscribed:") or event.startswith("lobbyPresenceList:")):
             if event not in self._event_handlers:
                 self._event_handlers[event] = set()
             self._event_handlers[event].add(handler)
@@ -652,6 +755,32 @@ class NoLag:
             if actor_id in self._presence_map:
                 self._presence_map[actor_id].presence = message.get("presence", {})
                 self._emit_event("presence:update", self._presence_map[actor_id])
+            return
+
+        # Handle lobby presence
+        if msg_type == "lobbyPresence":
+            event = message.get("event", "")
+            lobby_id = message.get("lobbyId", "")
+            presence_event = LobbyPresenceEvent(
+                lobby_id=lobby_id,
+                room_id=message.get("roomId", ""),
+                actor_id=message.get("actorId", ""),
+                data=message.get("data", {}),
+            )
+            self._emit_event(f"lobby:{lobby_id}:presence:{event}", presence_event)
+            self._emit_event(f"lobbyPresence:{event}", presence_event)
+            return
+
+        if msg_type == "lobbySubscribed":
+            lobby_id = message.get("lobbyId", "")
+            presence = message.get("presence", {})
+            self._emit_event(f"lobbySubscribed:{lobby_id}", presence)
+            return
+
+        if msg_type == "lobbyPresenceList":
+            lobby_id = message.get("lobbyId", "")
+            presence = message.get("presence", {})
+            self._emit_event(f"lobbyPresenceList:{lobby_id}", presence)
             return
 
         # Handle errors

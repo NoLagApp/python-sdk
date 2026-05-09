@@ -13,6 +13,9 @@ from .types import (
     EmitOptions,
     MessageMeta,
     ActorPresence,
+    LobbyPresenceEvent,
+    LobbyPresenceState,
+    LobbyPresenceHandler,
 )
 from .api import NoLagApi, NoLagApiError
 from .api_types import (
@@ -54,6 +57,9 @@ __all__ = [
     "EmitOptions",
     "MessageMeta",
     "ActorPresence",
+    "LobbyPresenceEvent",
+    "LobbyPresenceState",
+    "LobbyPresenceHandler",
     # REST API Client
     "NoLagApi",
     "NoLagApiError",

@@ -83,6 +83,21 @@ class ActorPresence:
     joined_at: Optional[float] = None
 
 
+# Lobby types
+LobbyPresenceState = dict[str, dict[str, dict[str, Any]]]
+
+
+@dataclass
+class LobbyPresenceEvent:
+    """Lobby presence event info"""
+    lobby_id: str
+    room_id: str
+    actor_id: str
+    data: dict[str, Any] = field(default_factory=dict)
+
+
+LobbyPresenceHandler = Callable[["LobbyPresenceEvent"], None]
+
 # Type aliases for callbacks
 MessageHandler = Callable[[Any, MessageMeta], None]
 EventHandler = Callable[..., None]
