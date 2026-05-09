@@ -657,7 +657,7 @@ class NoLag:
     async def _receive_loop(self) -> None:
         """Receive messages from the server"""
         try:
-            async for message in self._ws:
+            async for message in self._ws:  # type: ignore[union-attr]
                 await self._handle_message(message)
         except websockets.ConnectionClosed as e:
             self._log(f"Connection closed: {e}")
@@ -722,11 +722,11 @@ class NoLag:
                         self._log(f"Handler error: {e}")
 
             # Call any handlers
-            for handler in self._any_handlers:
+            for any_handler in self._any_handlers:
                 try:
-                    handler(topic, msg_data, meta)
+                    any_handler(topic, msg_data, meta)
                 except Exception as e:
-                    self._log(f"Any handler error: {e}")
+                    self._log(f"Any handler error: {e}")  # noqa
 
             return
 
@@ -744,7 +744,7 @@ class NoLag:
 
         if msg_type == "presence:leave":
             actor_id = message.get("actorTokenId")
-            actor = self._presence_map.pop(actor_id, None)
+            actor = self._presence_map.pop(actor_id, None)  # type: ignore[arg-type]
             if actor:
                 self._emit_event("presence:leave", actor)
             return

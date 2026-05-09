@@ -41,10 +41,10 @@ try:
     _WEBRTC_AVAILABLE = True
 except ImportError:
     _WEBRTC_AVAILABLE = False
-    WebRTCManager = None
-    WebRTCOptions = None
+    WebRTCManager = None  # type: ignore[misc,assignment]
+    WebRTCOptions = None  # type: ignore[misc,assignment]
 
-    def is_webrtc_available():
+    def is_webrtc_available() -> bool:  # type: ignore[no-redef]
         return False
 
 __version__ = "2.0.0"
