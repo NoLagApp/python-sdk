@@ -10,7 +10,7 @@ For real-time messaging, use the main NoLag WebSocket client.
 
 import aiohttp
 from typing import Any, Optional
-from urllib.parse import urljoin, urlencode
+from urllib.parse import urlencode
 
 from .api_types import (
     NoLagApiOptions,

@@ -23,7 +23,6 @@ from .types import (
     MessageHandler,
     MessageMeta,
     NoLagOptions,
-    QoS,
     SubscribeOptions,
 )
 

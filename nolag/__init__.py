@@ -43,7 +43,9 @@ except ImportError:
     _WEBRTC_AVAILABLE = False
     WebRTCManager = None
     WebRTCOptions = None
-    is_webrtc_available = lambda: False
+
+    def is_webrtc_available():
+        return False
 
 __version__ = "2.0.0"
 __all__ = [

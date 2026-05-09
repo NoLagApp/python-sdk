@@ -4,7 +4,7 @@ NoLag SDK Types
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Callable, Optional
 
 
 class ConnectionStatus(str, Enum):

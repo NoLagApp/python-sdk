@@ -27,15 +27,17 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from .client import NoLag
 
 logger = logging.getLogger("nolag.webrtc")
 
 # Try to import aiortc
 try:
-    from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
-    from aiortc.contrib.media import MediaStreamTrack
+    from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate  # noqa: F401
     AIORTC_AVAILABLE = True
 except ImportError:
     AIORTC_AVAILABLE = False
