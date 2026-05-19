@@ -92,7 +92,7 @@ class Room:
     async def set_filters(
         self,
         topic: str,
-        filters: list[str],
+        filters: list[str | list[str]],
         callback: Optional[AckCallback] = None,
     ) -> None:
         """Replace all filters for a topic in this room"""
@@ -275,8 +275,8 @@ class NoLag:
         self._message_handlers: dict[str, set[MessageHandler]] = {}
         self._any_handlers: set[Callable[[str, Any, MessageMeta], None]] = set()
 
-        # Filter tracking
-        self._topic_filters: dict[str, set[str]] = {}
+        # Filter tracking (topic -> mixed list of OR strings and AND groups)
+        self._topic_filters: dict[str, list[str | list[str]]] = {}
 
         # Auth promise
         self._auth_future: Optional[asyncio.Future] = None
@@ -427,10 +427,10 @@ class NoLag:
             group = opts.load_balance_group or self._options.load_balance_group or self._actor_token_id
             message["loadBalanceGroup"] = group
 
-        # Add filters
+        # Add filters (supports mixed arrays with AND groups)
         if opts.filters and len(opts.filters) > 0:
             message["filters"] = opts.filters
-            self._topic_filters[topic] = set(opts.filters)
+            self._topic_filters[topic] = list(opts.filters)
 
         await self._send(message)
 
@@ -440,7 +440,7 @@ class NoLag:
     async def set_filters(
         self,
         topic: str,
-        filters: list[str],
+        filters: list[str | list[str]],
         callback: Optional[AckCallback] = None,
     ) -> None:
         """Replace all filters for a topic. Empty list switches to wildcard."""
@@ -450,7 +450,7 @@ class NoLag:
             return
 
         if filters:
-            self._topic_filters[topic] = set(filters)
+            self._topic_filters[topic] = list(filters)
         else:
             self._topic_filters.pop(topic, None)
 
@@ -465,10 +465,13 @@ class NoLag:
         filters: list[str],
         callback: Optional[AckCallback] = None,
     ) -> None:
-        """Add filters to existing set for a topic."""
-        existing = self._topic_filters.get(topic, set())
-        existing.update(filters)
-        await self.set_filters(topic, list(existing), callback)
+        """Add filters to existing set for a topic. Only adds simple strings; AND groups are preserved."""
+        existing = self._topic_filters.get(topic, [])
+        simple_set = {item for item in existing if isinstance(item, str)}
+        and_groups = [item for item in existing if isinstance(item, list)]
+        simple_set.update(filters)
+        merged: list[str | list[str]] = list(simple_set) + and_groups
+        await self.set_filters(topic, merged, callback)
 
     async def remove_filters(
         self,
@@ -476,10 +479,14 @@ class NoLag:
         filters: list[str],
         callback: Optional[AckCallback] = None,
     ) -> None:
-        """Remove specific filters from a topic."""
-        existing = self._topic_filters.get(topic, set())
-        existing -= set(filters)
-        await self.set_filters(topic, list(existing), callback)
+        """Remove specific simple filters from a topic. AND groups are preserved."""
+        existing = self._topic_filters.get(topic, [])
+        remove_set = set(filters)
+        remaining: list[str | list[str]] = [
+            item for item in existing
+            if not (isinstance(item, str) and item in remove_set)
+        ]
+        await self.set_filters(topic, remaining, callback)
 
     async def unsubscribe(
         self,
@@ -535,9 +542,11 @@ class NoLag:
         # Add echo option (default True - you receive your own messages)
         message["echo"] = opts.echo
 
-        # Add filter
+        # Add filter (singular takes precedence)
         if opts.filter:
             message["filter"] = opts.filter
+        elif opts.filters and len(opts.filters) > 0:
+            message["filters"] = opts.filters
 
         await self._send(message)
 

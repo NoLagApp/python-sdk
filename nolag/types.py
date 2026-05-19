@@ -52,7 +52,7 @@ class SubscribeOptions:
     qos: Optional[QoS] = None
     load_balance: Optional[bool] = None
     load_balance_group: Optional[str] = None
-    filters: Optional[list[str]] = None
+    filters: Optional[list[str | list[str]]] = None
 
 
 @dataclass
@@ -62,6 +62,7 @@ class EmitOptions:
     retain: bool = False
     echo: bool = True  # Whether to receive this message back if subscribed
     filter: Optional[str] = None
+    filters: Optional[list[str]] = None  # AND composite publish
 
 
 @dataclass
