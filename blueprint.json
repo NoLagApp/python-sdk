@@ -1,0 +1,115 @@
+{
+  "blueprintId": "nolag-python-sdk-test",
+  "name": "NoLag Python SDK Integration Test",
+  "description": "End-to-end integration test for the NoLag Python SDK — covers pub/sub, filters, presence, echo, retain, QoS, multiple rooms, and rapid messaging",
+  "version": "1.0.0",
+  "category": "testing",
+  "tags": [
+    "python",
+    "sdk",
+    "integration-test",
+    "pub-sub",
+    "presence",
+    "filters"
+  ],
+  "difficulty": "beginner",
+  "framework": "python",
+  "dependencies": {
+    "nolag": ">=2.0.0"
+  },
+  "topics": [
+    "basic-test",
+    "direct-test",
+    "on-off-test",
+    "off-all-test",
+    "any-test",
+    "offany-test",
+    "unsub-test",
+    "echo-test",
+    "noecho-test",
+    "retain-test",
+    "qos-0-test",
+    "qos-1-test",
+    "data-test",
+    "string-test",
+    "meta-test",
+    "filter1-test",
+    "orfilt-test",
+    "andfilt-test",
+    "setfilt-test",
+    "addfilt-test",
+    "rmfilt-test",
+    "filtmeta-test",
+    "mfpub-test",
+    "multi-test",
+    "rapid-test",
+    "multi-handler-test",
+    "lb-test"
+  ],
+  "topicConfigs": {
+    "retain-test": {
+      "logging": {
+        "enabled": true,
+        "retention": "1d",
+        "replayEnabled": false
+      }
+    }
+  },
+  "config": {
+    "staticRooms": [
+      {
+        "slug": "integration-test",
+        "name": "Integration Test",
+        "description": "Primary room for SDK integration tests",
+        "topics": [
+          "basic-test",
+          "direct-test",
+          "on-off-test",
+          "off-all-test",
+          "any-test",
+          "offany-test",
+          "unsub-test",
+          "echo-test",
+          "noecho-test",
+          "retain-test",
+          "qos-0-test",
+          "qos-1-test",
+          "data-test",
+          "string-test",
+          "meta-test",
+          "filter1-test",
+          "orfilt-test",
+          "andfilt-test",
+          "setfilt-test",
+          "addfilt-test",
+          "rmfilt-test",
+          "filtmeta-test",
+          "mfpub-test",
+          "rapid-test",
+          "multi-handler-test",
+          "lb-test"
+        ]
+      },
+      {
+        "slug": "room-alpha",
+        "name": "Room Alpha",
+        "description": "First room for multi-room isolation test",
+        "topics": [
+          "multi-test"
+        ]
+      },
+      {
+        "slug": "room-beta",
+        "name": "Room Beta",
+        "description": "Second room for multi-room isolation test",
+        "topics": [
+          "multi-test"
+        ]
+      }
+    ],
+    "settings": {
+      "rateLimit": "200/min",
+      "maxPayloadSize": 4096
+    }
+  }
+}

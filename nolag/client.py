@@ -116,6 +116,14 @@ class Room:
         """Remove specific filters from a topic in this room"""
         await self._client.remove_filters(self._full_topic(topic), filters, callback)
 
+    async def set_presence(self, data: dict[str, Any]) -> None:
+        """Set presence data scoped to this room"""
+        await self._client.set_presence(data, room_id=self._room_name)
+
+    async def fetch_presence(self) -> list[Any]:
+        """Fetch current presence for this room"""
+        return await self._client.fetch_presence(room_id=self._room_name)
+
 
 class Lobby:
     """
@@ -360,7 +368,7 @@ class NoLag:
 
             # Restore presence
             if self._presence:
-                await self._send_presence(self._presence)
+                await self._send_presence(self._presence, getattr(self, "_presence_room_id", None))
 
         except Exception as e:
             self._status = ConnectionStatus.DISCONNECTED
@@ -604,17 +612,23 @@ class NoLag:
 
     # ============ Presence ============
 
-    async def set_presence(self, data: dict[str, Any]) -> None:
-        """Set presence data for this actor"""
+    async def set_presence(self, data: dict[str, Any], room_id: Optional[str] = None) -> None:
+        """Set presence data for this actor, optionally scoped to a room"""
         self._presence = data
+        self._presence_room_id = room_id
         if self._status == ConnectionStatus.CONNECTED:
-            await self._send_presence(data)
+            await self._send_presence(data, room_id)
 
     async def clear_presence(self) -> None:
         """Clear presence data"""
+        room_id = getattr(self, "_presence_room_id", None)
         self._presence = None
+        self._presence_room_id = None
         if self._status == ConnectionStatus.CONNECTED:
-            await self._send({"type": "presence", "data": None})
+            msg: dict[str, Any] = {"type": "presence", "data": None}
+            if room_id:
+                msg["roomId"] = room_id
+            await self._send(msg)
 
     def get_presence(self, actor_token_id: str) -> Optional[ActorPresence]:
         """Get presence data for an actor"""
@@ -623,6 +637,31 @@ class NoLag:
     def get_all_presence(self) -> list[ActorPresence]:
         """Get all presence data"""
         return list(self._presence_map.values())
+
+    async def fetch_presence(self, room_id: Optional[str] = None) -> list[Any]:
+        """Request presence list from server for a room"""
+        if not self.connected:
+            raise Exception("Not connected")
+
+        future: asyncio.Future = asyncio.get_event_loop().create_future()
+        event_key = "presenceList"
+
+        def handler(*args):
+            if not future.done():
+                future.set_result(args[0] if args else [])
+                self.off(event_key, handler)
+
+        self.on(event_key, handler)
+        msg: dict[str, Any] = {"type": "getPresence"}
+        if room_id:
+            msg["roomId"] = room_id
+        await self._send(msg)
+
+        try:
+            return await asyncio.wait_for(future, timeout=10.0)
+        except asyncio.TimeoutError:
+            self.off(event_key, handler)
+            raise Exception("Presence request timeout")
 
     # ============ Private Methods ============
 
@@ -658,9 +697,12 @@ class NoLag:
         payload = msgpack.packb(message)
         await self._ws.send(payload)
 
-    async def _send_presence(self, data: dict[str, Any]) -> None:
-        """Send presence update"""
-        await self._send({"type": "presence", "data": data})
+    async def _send_presence(self, data: dict[str, Any], room_id: Optional[str] = None) -> None:
+        """Send presence update, optionally scoped to a room"""
+        msg: dict[str, Any] = {"type": "presence", "data": data}
+        if room_id:
+            msg["roomId"] = room_id
+        await self._send(msg)
 
     async def _receive_loop(self) -> None:
         """Receive messages from the server"""
@@ -738,30 +780,48 @@ class NoLag:
 
             return
 
-        # Handle presence
-        if msg_type == "presence:join":
-            actor = ActorPresence(
-                actor_token_id=message.get("actorTokenId", ""),
-                actor_type=ActorType(message.get("actorType", "device")),
-                presence=message.get("presence", {}),
-                joined_at=message.get("joinedAt"),
-            )
-            self._presence_map[actor.actor_token_id] = actor
-            self._emit_event("presence:join", actor)
+        # Handle presence events from broker
+        # Broker sends: {type: "presence", event: "join"/"leave"/"update", data: {...}}
+        if msg_type == "presence":
+            event = message.get("event", "")
+            event_data = message.get("data", {})
+            if event == "join":
+                actor_id = event_data.get("actor_token_id", "")
+                presence_data = event_data.get("presence", {})
+                actor = ActorPresence(
+                    actor_token_id=actor_id,
+                    actor_type=ActorType(event_data.get("actor_type", "device")) if event_data.get("actor_type") else ActorType.DEVICE,
+                    presence=presence_data,
+                    joined_at=event_data.get("joined_at"),
+                )
+                self._presence_map[actor.actor_token_id] = actor
+                self._emit_event("presence:join", actor)
+            elif event == "leave":
+                actor_id = event_data.get("actor_token_id", "")
+                actor = self._presence_map.pop(actor_id, None)
+                if actor:
+                    self._emit_event("presence:leave", actor)
+            elif event == "update":
+                actor_id = event_data.get("actor_token_id", "")
+                presence_data = event_data.get("presence", {})
+                if actor_id in self._presence_map:
+                    self._presence_map[actor_id].presence = presence_data
+                    self._emit_event("presence:update", self._presence_map[actor_id])
+                else:
+                    # First time seeing this actor — treat as join
+                    actor = ActorPresence(
+                        actor_token_id=actor_id,
+                        actor_type=ActorType.DEVICE,
+                        presence=presence_data,
+                    )
+                    self._presence_map[actor_id] = actor
+                    self._emit_event("presence:update", actor)
             return
 
-        if msg_type == "presence:leave":
-            actor_id = message.get("actorTokenId")
-            actor = self._presence_map.pop(actor_id, None)  # type: ignore[arg-type]
-            if actor:
-                self._emit_event("presence:leave", actor)
-            return
-
-        if msg_type == "presence:update":
-            actor_id = message.get("actorTokenId")
-            if actor_id in self._presence_map:
-                self._presence_map[actor_id].presence = message.get("presence", {})
-                self._emit_event("presence:update", self._presence_map[actor_id])
+        # Handle presenceList response
+        if msg_type == "presenceList":
+            presence_list = message.get("data", [])
+            self._emit_event("presenceList", presence_list)
             return
 
         # Handle lobby presence
