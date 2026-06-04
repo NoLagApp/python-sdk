@@ -271,6 +271,9 @@ class ActorCreate:
         return result
 
 
+_UNSET = object()
+
+
 @dataclass
 class ActorUpdate:
     """Update actor request"""
@@ -279,6 +282,7 @@ class ActorUpdate:
     external_id: Optional[str] = None
     metadata: Optional[dict[str, Any]] = None
     is_active: Optional[bool] = None
+    access_scope_id: Any = _UNSET  # Use _UNSET sentinel so None means "unscope"
 
     def to_dict(self) -> dict:
         result = {}
@@ -288,6 +292,77 @@ class ActorUpdate:
             result["description"] = self.description
         if self.external_id is not None:
             result["externalId"] = self.external_id
+        if self.metadata is not None:
+            result["metadata"] = self.metadata
+        if self.is_active is not None:
+            result["isActive"] = self.is_active
+        if self.access_scope_id is not _UNSET:
+            result["accessScopeId"] = self.access_scope_id
+        return result
+
+
+# ============ Scope Types ============
+
+
+@dataclass
+class Scope:
+    """Access scope resource"""
+    access_scope_id: str
+    project_id: str
+    slug: str
+    name: str
+    description: Optional[str] = None
+    metadata: Optional[dict[str, Any]] = None
+    is_active: bool = True
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Scope":
+        return cls(
+            access_scope_id=data.get("accessScopeId", ""),
+            project_id=data.get("projectId", ""),
+            slug=data.get("slug", ""),
+            name=data.get("name", ""),
+            description=data.get("description"),
+            metadata=data.get("metadata"),
+            is_active=data.get("isActive", True),
+            created_at=data.get("createdAt"),
+            updated_at=data.get("updatedAt"),
+        )
+
+
+@dataclass
+class ScopeCreate:
+    """Create scope request"""
+    slug: str
+    name: str
+    description: Optional[str] = None
+    metadata: Optional[dict[str, Any]] = None
+
+    def to_dict(self) -> dict:
+        result = {"slug": self.slug, "name": self.name}
+        if self.description:
+            result["description"] = self.description
+        if self.metadata:
+            result["metadata"] = self.metadata
+        return result
+
+
+@dataclass
+class ScopeUpdate:
+    """Update scope request"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    metadata: Optional[dict[str, Any]] = None
+    is_active: Optional[bool] = None
+
+    def to_dict(self) -> dict:
+        result = {}
+        if self.name is not None:
+            result["name"] = self.name
+        if self.description is not None:
+            result["description"] = self.description
         if self.metadata is not None:
             result["metadata"] = self.metadata
         if self.is_active is not None:

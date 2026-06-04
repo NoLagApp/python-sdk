@@ -27,6 +27,9 @@ from .api_types import (
     ActorWithToken,
     ActorCreate,
     ActorUpdate,
+    Scope,
+    ScopeCreate,
+    ScopeUpdate,
 )
 
 DEFAULT_BASE_URL = "https://api.nolag.app/v1"
@@ -153,6 +156,57 @@ class ActorsApi:
         await self._api._request("DELETE", f"/actors/{actor_id}")
 
 
+class ScopesApi:
+    """Scopes API - Manage access scopes in your project"""
+
+    def __init__(self, api: "NoLagApi"):
+        self._api = api
+
+    async def list(self, options: Optional[ListOptions] = None) -> PaginatedResult:
+        """List all access scopes in the project"""
+        params = options.to_params() if options else {}
+        data = await self._api._request("GET", "/scopes", params=params)
+        return PaginatedResult(
+            data=[Scope.from_dict(item) for item in data.get("data", [])],
+            total=data.get("total", 0),
+            page=data.get("page", 1),
+            limit=data.get("limit", 10),
+            total_pages=data.get("totalPages", 1),
+        )
+
+    async def get(self, scope_id: str) -> Scope:
+        """Get an access scope by ID"""
+        data = await self._api._request("GET", f"/scopes/{scope_id}")
+        return Scope.from_dict(data)
+
+    async def create(self, data: ScopeCreate) -> Scope:
+        """Create a new access scope"""
+        result = await self._api._request("POST", "/scopes", json=data.to_dict())
+        return Scope.from_dict(result)
+
+    async def update(self, scope_id: str, data: ScopeUpdate) -> Scope:
+        """Update an access scope"""
+        result = await self._api._request("PATCH", f"/scopes/{scope_id}", json=data.to_dict())
+        return Scope.from_dict(result)
+
+    async def delete(self, scope_id: str) -> None:
+        """Delete an access scope"""
+        await self._api._request("DELETE", f"/scopes/{scope_id}")
+
+    async def list_actors(self, scope_id: str) -> list[Actor]:
+        """List actors assigned to a scope"""
+        data = await self._api._request("GET", f"/scopes/{scope_id}/actors")
+        return [Actor.from_dict(item) for item in data]
+
+    async def add_actor(self, scope_id: str, actor_id: str) -> Actor:
+        """Assign an actor to this scope"""
+        return await self._api.actors.update(actor_id, ActorUpdate(access_scope_id=scope_id))
+
+    async def remove_actor(self, actor_id: str) -> Actor:
+        """Remove an actor from its scope (unscope it)"""
+        return await self._api.actors.update(actor_id, ActorUpdate(access_scope_id=None))
+
+
 class NoLagApi:
     """
     NoLag REST API Client
@@ -197,6 +251,7 @@ class NoLagApi:
         self.apps = AppsApi(self)
         self.rooms = RoomsApi(self)
         self.actors = ActorsApi(self)
+        self.scopes = ScopesApi(self)
 
     async def __aenter__(self) -> "NoLagApi":
         """Async context manager entry"""

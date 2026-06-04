@@ -33,6 +33,9 @@ from .api_types import (
     ActorWithToken,
     ActorCreate,
     ActorUpdate,
+    Scope,
+    ScopeCreate,
+    ScopeUpdate,
 )
 
 # WebRTC support (optional, requires aiortc)
@@ -79,6 +82,9 @@ __all__ = [
     "ActorWithToken",
     "ActorCreate",
     "ActorUpdate",
+    "Scope",
+    "ScopeCreate",
+    "ScopeUpdate",
     # WebRTC (optional)
     "WebRTCManager",
     "WebRTCOptions",
