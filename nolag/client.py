@@ -742,7 +742,13 @@ class NoLag:
                 self._project_id = message.get("projectId")
                 actor_type = message.get("actorType")
                 if actor_type:
-                    self._actor_type = ActorType(actor_type)
+                    # An unknown actor type must never fail authentication —
+                    # newer brokers may introduce types this SDK predates
+                    try:
+                        self._actor_type = ActorType(actor_type)
+                    except ValueError:
+                        self._log(f"Unknown actorType '{actor_type}', ignoring")
+                        self._actor_type = None
 
                 restored = message.get("restoredSubscriptions", [])
                 self._auth_future.set_result(restored)

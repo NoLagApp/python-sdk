@@ -16,11 +16,15 @@ class ConnectionStatus(str, Enum):
 
 
 class ActorType(str, Enum):
-    """Actor types"""
+    """Actor types (must mirror the broker / js-sdk list)"""
     DEVICE = "device"
     USER = "user"
     SERVER = "server"
+    SERVICE = "service"
     SESSION = "session"
+    AGENT = "agent"
+    ORCHESTRATOR = "orchestrator"
+    OBSERVER = "observer"
 
 
 class QoS(int, Enum):

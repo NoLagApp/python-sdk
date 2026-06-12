@@ -8,6 +8,8 @@ Use this for managing apps, rooms, and actors within your project.
 For real-time messaging, use the main NoLag WebSocket client.
 """
 
+from __future__ import annotations
+
 import aiohttp
 from typing import Any, Optional
 from urllib.parse import urlencode
