@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nolag"
-version = "2.2.1"
+version = "2.3.0"
 description = "NoLag real-time messaging SDK for Python"
 readme = "README.md"
 license = {text = "MIT"}

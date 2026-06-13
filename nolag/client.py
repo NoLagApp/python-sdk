@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional
 import msgpack
 import websockets
 
+from .errors import NoLagEncodeError, NoLagServerError
 from .types import (
     ActorPresence,
     ActorType,
@@ -235,6 +236,10 @@ class App:
         return Lobby(self._client, lobby_id)
 
 
+PROTOCOL_VERSION = 2  # v2: loud failures (42940 unknown_topic), published acks
+PENDING_OP_TIMEOUT_S = 10.0
+
+
 class NoLag:
     """
     NoLag Client
@@ -273,6 +278,12 @@ class NoLag:
         self._actor_token_id: Optional[str] = None
         self._project_id: Optional[str] = None
         self._actor_type: Optional[ActorType] = None
+        self._protocol_version: int = 1
+
+        # Pending operation tracking: real acks instead of optimistic callback(None)
+        self._pending_subscribes: dict[str, list] = {}
+        self._pending_publishes: dict[str, Any] = {}
+        self._msg_ref_counter: int = 0
 
         # Presence
         self._presence: Optional[dict[str, Any]] = None
@@ -300,6 +311,11 @@ class NoLag:
     def status(self) -> ConnectionStatus:
         """Current connection status"""
         return self._status
+
+    @property
+    def protocol_version(self) -> int:
+        """Negotiated protocol version (1 against pre-v2 brokers)."""
+        return self._protocol_version
 
     @property
     def actor_id(self) -> Optional[str]:
@@ -440,10 +456,49 @@ class NoLag:
             message["filters"] = opts.filters
             self._topic_filters[topic] = list(opts.filters)
 
-        await self._send(message)
+        try:
+            await self._send(message, "subscribe", topic)
+        except Exception as e:  # noqa: BLE001
+            if callback:
+                callback(e)
+                return
+            raise
 
+        # Real ack: resolve on the broker's `subscribed` frame, reject on a
+        # topic-matched error frame (e.g. not_authorized, 42940 unknown_topic).
         if callback:
-            callback(None)
+            loop = asyncio.get_event_loop()
+
+            async def _timeout_watch() -> None:
+                await asyncio.sleep(PENDING_OP_TIMEOUT_S)
+                self._settle_subscribe(topic, TimeoutError(
+                    f"subscribe '{topic}' was not acknowledged within {PENDING_OP_TIMEOUT_S}s"
+                ))
+
+            entry = {"callback": callback, "timer": loop.create_task(_timeout_watch())}
+            self._pending_subscribes.setdefault(topic, []).append(entry)
+
+    def _settle_subscribe(self, topic: str, err: Optional[Exception]) -> None:
+        pending = self._pending_subscribes.pop(topic, None)
+        if not pending:
+            return
+        for entry in pending:
+            entry["timer"].cancel()
+            entry["callback"](err)
+
+    def _settle_publish(self, msg_ref: str, err: Optional[Exception]) -> bool:
+        entry = self._pending_publishes.pop(msg_ref, None)
+        if not entry:
+            return False
+        entry["timer"].cancel()
+        entry["callback"](err)
+        return True
+
+    def _fail_all_pending(self, reason: str) -> None:
+        for topic in list(self._pending_subscribes.keys()):
+            self._settle_subscribe(topic, ConnectionError(f"subscribe '{topic}' aborted: {reason}"))
+        for msg_ref in list(self._pending_publishes.keys()):
+            self._settle_publish(msg_ref, ConnectionError(f"publish aborted: {reason}"))
 
     async def set_filters(
         self,
@@ -556,9 +611,38 @@ class NoLag:
         elif opts.filters and len(opts.filters) > 0:
             message["filters"] = opts.filters
 
-        await self._send(message)
+        # v2 brokers ack publishes: attach a msgRef and resolve the callback
+        # on the `published` frame (or a msgRef-matched error frame). v1
+        # keeps legacy optimistic "sent" semantics.
+        use_real_ack = callback is not None and self._protocol_version >= 2
+        msg_ref: Optional[str] = None
+        if use_real_ack:
+            self._msg_ref_counter += 1
+            msg_ref = f"{self._msg_ref_counter}-{id(message) & 0xffff:x}"
+            message["msgRef"] = msg_ref
 
-        if callback:
+        try:
+            await self._send(message, "publish", topic)
+        except Exception as e:  # noqa: BLE001
+            if callback:
+                callback(e)
+                return
+            raise
+
+        if use_real_ack and msg_ref and callback:
+            loop = asyncio.get_event_loop()
+
+            async def _timeout_watch() -> None:
+                await asyncio.sleep(PENDING_OP_TIMEOUT_S)
+                self._settle_publish(msg_ref, TimeoutError(
+                    f"publish to '{topic}' was not acknowledged within {PENDING_OP_TIMEOUT_S}s"
+                ))
+
+            self._pending_publishes[msg_ref] = {
+                "callback": callback,
+                "timer": loop.create_task(_timeout_watch()),
+            }
+        elif callback:
             callback(None)
 
     # ============ Event Handlers ============
@@ -672,6 +756,7 @@ class NoLag:
         message: dict[str, Any] = {
             "type": "auth",
             "token": self._token,
+            "protocolVersion": PROTOCOL_VERSION,
         }
 
         if self._reconnect_attempts > 0:
@@ -688,21 +773,35 @@ class NoLag:
         result = await asyncio.wait_for(self._auth_future, timeout=10.0)
         return result
 
-    async def _send(self, message: dict) -> None:
-        """Send a message to the server"""
+    async def _send(self, message: dict, op: str = "send", topic: Optional[str] = None) -> None:
+        """Send a message to the server. Loud: raises on not-open and on
+        unencodable payloads (also emitting an 'error' event for the latter)."""
         if not self._ws:
-            return
+            target = f" ({op}{' ' + repr(topic) if topic else ''})"
+            raise ConnectionError(f"Cannot send{target}: WebSocket not open")
 
         self._log(f"Sending: {message}")
-        payload = msgpack.packb(message)
+        try:
+            payload = msgpack.packb(message)
+        except Exception as cause:
+            err = NoLagEncodeError(op, topic, cause)
+            self._emit_event("error", err)
+            raise err from cause
         await self._ws.send(payload)
+
+    async def _try_send(self, message: dict, op: str = "send") -> None:
+        """Fire-and-forget internal sends (acks, presence, heartbeats)."""
+        try:
+            await self._send(message, op)
+        except Exception as e:  # noqa: BLE001
+            self._log(f"Send failed: {e}")
 
     async def _send_presence(self, data: dict[str, Any], room_id: Optional[str] = None) -> None:
         """Send presence update, optionally scoped to a room"""
         msg: dict[str, Any] = {"type": "presence", "data": data}
         if room_id:
             msg["roomId"] = room_id
-        await self._send(msg)
+        await self._try_send(msg, "presence")
 
     async def _receive_loop(self) -> None:
         """Receive messages from the server"""
@@ -739,6 +838,9 @@ class NoLag:
         if msg_type == "auth" and self._auth_future:
             if message.get("success"):
                 self._actor_token_id = message.get("actorTokenId")
+                # Pre-v2 brokers omit the field => negotiate down to 1
+                pv = message.get("protocolVersion")
+                self._protocol_version = pv if isinstance(pv, int) else 1
                 self._project_id = message.get("projectId")
                 actor_type = message.get("actorType")
                 if actor_type:
@@ -856,10 +958,31 @@ class NoLag:
             self._emit_event(f"lobbyPresenceList:{lobby_id}", presence)
             return
 
-        # Handle errors
+        # Handle subscribe acks
+        if msg_type == "subscribed":
+            self._log(f"Subscribed to: {message.get('topic')}")
+            topic0 = message.get("topic")
+            if topic0:
+                self._settle_subscribe(topic0, None)
+            return
+
+        # Handle publish acks (v2)
+        if msg_type == "published":
+            msg_ref0 = message.get("msgRef")
+            if msg_ref0:
+                self._settle_publish(msg_ref0, None)
+            return
+
+        # Handle errors — structured, routed to the operation that caused them
+        # (and ALSO emitted so observers see every server error). Note: the
+        # broker sends the reason in `error`, not `message`.
         if msg_type == "error":
-            error = Exception(message.get("message", "Unknown error"))
-            self._emit_event("error", error)
+            server_error = NoLagServerError(message)
+            if message.get("msgRef"):
+                self._settle_publish(message["msgRef"], server_error)
+            if message.get("topic"):
+                self._settle_subscribe(message["topic"], server_error)
+            self._emit_event("error", server_error)
             return
 
     async def _handle_disconnect(self, reason: str) -> None:
@@ -867,6 +990,7 @@ class NoLag:
         was_connected = self._status == ConnectionStatus.CONNECTED
         self._status = ConnectionStatus.DISCONNECTED
         self._ws = None
+        self._fail_all_pending(reason or "disconnected")
 
         self._stop_heartbeat()
 

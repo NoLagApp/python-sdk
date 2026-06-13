@@ -3,6 +3,7 @@ NoLag Python SDK
 Real-time messaging for Python applications
 """
 
+from .errors import NoLagEncodeError, NoLagServerError
 from .client import NoLag
 from .types import (
     NoLagOptions,
@@ -52,6 +53,8 @@ except ImportError:
 
 __version__ = "2.0.0"
 __all__ = [
+    "NoLagEncodeError",
+    "NoLagServerError",
     # WebSocket Client
     "NoLag",
     "NoLagOptions",
