@@ -19,6 +19,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install package with test deps
+        run: |
+          pip install -e .
+          pip install pytest pytest-asyncio
+
+      - name: Run tests (publish gate)
+        run: pytest tests -q
+
       - name: Install build tools
         run: pip install hatch
 
