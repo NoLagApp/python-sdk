@@ -86,6 +86,11 @@ class ActorPresence:
     actor_type: ActorType
     presence: dict[str, Any] = field(default_factory=dict)
     joined_at: Optional[float] = None
+    # Persistent Presence: lifecycle status of a persistent actor's durable
+    # record — "online" (connected), "offline" (registered but disconnected,
+    # still discoverable + wakeable), or "waking" (a wake webhook was fired).
+    status: Optional[str] = None
+    advertisement_version: Optional[int] = None
 
 
 # Lobby types

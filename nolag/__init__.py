@@ -51,7 +51,7 @@ except ImportError:
     def is_webrtc_available() -> bool:  # type: ignore[no-redef]
         return False
 
-__version__ = "2.0.0"
+__version__ = "2.4.0"
 __all__ = [
     "NoLagEncodeError",
     "NoLagServerError",

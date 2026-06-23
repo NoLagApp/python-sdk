@@ -893,6 +893,9 @@ class NoLag:
         if msg_type == "presence":
             event = message.get("event", "")
             event_data = message.get("data", {})
+            # Persistent Presence: status (online|offline|waking) + advert version
+            status = event_data.get("status")
+            adv_version = event_data.get("advertisementVersion", event_data.get("advertisement_version"))
             if event == "join":
                 actor_id = event_data.get("actor_token_id", "")
                 presence_data = event_data.get("presence", {})
@@ -901,6 +904,8 @@ class NoLag:
                     actor_type=ActorType(event_data.get("actor_type", "device")) if event_data.get("actor_type") else ActorType.DEVICE,
                     presence=presence_data,
                     joined_at=event_data.get("joined_at"),
+                    status=status,
+                    advertisement_version=adv_version,
                 )
                 self._presence_map[actor.actor_token_id] = actor
                 self._emit_event("presence:join", actor)
@@ -909,21 +914,27 @@ class NoLag:
                 actor = self._presence_map.pop(actor_id, None)
                 if actor:
                     self._emit_event("presence:leave", actor)
-            elif event == "update":
+            elif event in ("update", "waking"):
                 actor_id = event_data.get("actor_token_id", "")
                 presence_data = event_data.get("presence", {})
                 if actor_id in self._presence_map:
                     self._presence_map[actor_id].presence = presence_data
-                    self._emit_event("presence:update", self._presence_map[actor_id])
+                    if status is not None:
+                        self._presence_map[actor_id].status = status
+                    actor = self._presence_map[actor_id]
                 else:
                     # First time seeing this actor — treat as join
                     actor = ActorPresence(
                         actor_token_id=actor_id,
                         actor_type=ActorType.DEVICE,
                         presence=presence_data,
+                        status=status,
+                        advertisement_version=adv_version,
                     )
                     self._presence_map[actor_id] = actor
-                    self._emit_event("presence:update", actor)
+                self._emit_event("presence:update", actor)
+                if event == "waking":
+                    self._emit_event("presence:waking", actor)
             return
 
         # Handle presenceList response
