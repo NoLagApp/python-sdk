@@ -30,6 +30,9 @@ from .api_types import (
     Room,
     RoomCreate,
     RoomUpdate,
+    RoomActorAccess,
+    RoomActorAccessCreate,
+    AccessPermission,
     Actor,
     ActorWithToken,
     ActorCreate,
@@ -51,7 +54,7 @@ except ImportError:
     def is_webrtc_available() -> bool:  # type: ignore[no-redef]
         return False
 
-__version__ = "2.4.0"
+__version__ = "2.5.0"
 __all__ = [
     "NoLagEncodeError",
     "NoLagServerError",
@@ -81,6 +84,9 @@ __all__ = [
     "Room",
     "RoomCreate",
     "RoomUpdate",
+    "RoomActorAccess",
+    "RoomActorAccessCreate",
+    "AccessPermission",
     "Actor",
     "ActorWithToken",
     "ActorCreate",

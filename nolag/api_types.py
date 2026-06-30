@@ -188,6 +188,77 @@ class RoomUpdate:
         return result
 
 
+# ============ Room Actor Access (room ACL) Types ============
+
+AccessPermission = Literal["subscribe", "publish", "pubSub"]
+
+
+@dataclass
+class RoomActorAccess:
+    """Room-level ACL grant. A room becomes private once it has >=1 grant;
+    the broker then only admits actors with an explicit, unexpired grant."""
+    room_actor_access_id: str
+    room_id: str
+    actor_token_id: Optional[str] = None
+    actor_type: Optional[str] = None
+    permission: AccessPermission = "subscribe"
+    topics: Optional[list[str]] = None
+    is_active: bool = True
+    expires_at: Optional[str] = None
+    role: Optional[str] = None
+    metadata: Optional[dict[str, Any]] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RoomActorAccess":
+        return cls(
+            room_actor_access_id=data.get("roomActorAccessId", ""),
+            room_id=data.get("roomId", ""),
+            actor_token_id=data.get("actorTokenId"),
+            actor_type=data.get("actorType"),
+            permission=data.get("permission", "subscribe"),
+            topics=data.get("topics"),
+            is_active=data.get("isActive", True),
+            expires_at=data.get("expiresAt"),
+            role=data.get("role"),
+            metadata=data.get("metadata"),
+            created_at=data.get("createdAt"),
+            updated_at=data.get("updatedAt"),
+        )
+
+
+@dataclass
+class RoomActorAccessCreate:
+    """Grant an actor access to a room. Provide actor_token_id OR actor_type."""
+    permission: AccessPermission
+    actor_token_id: Optional[str] = None
+    actor_type: Optional[str] = None
+    topics: Optional[list[str]] = None
+    is_active: Optional[bool] = None
+    expires_at: Optional[str] = None
+    role: Optional[str] = None
+    metadata: Optional[dict[str, Any]] = None
+
+    def to_dict(self) -> dict:
+        result = {"permission": self.permission}
+        if self.actor_token_id:
+            result["actorTokenId"] = self.actor_token_id
+        if self.actor_type:
+            result["actorType"] = self.actor_type
+        if self.topics is not None:
+            result["topics"] = self.topics
+        if self.is_active is not None:
+            result["isActive"] = self.is_active
+        if self.expires_at:
+            result["expiresAt"] = self.expires_at
+        if self.role:
+            result["role"] = self.role
+        if self.metadata:
+            result["metadata"] = self.metadata
+        return result
+
+
 # ============ Actor Types ============
 
 ActorTokenType = Literal["device", "user", "server"]

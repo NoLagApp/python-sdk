@@ -25,6 +25,8 @@ from .api_types import (
     Room,
     RoomCreate,
     RoomUpdate,
+    RoomActorAccess,
+    RoomActorAccessCreate,
     Actor,
     ActorWithToken,
     ActorCreate,
@@ -121,6 +123,38 @@ class RoomsApi:
     async def delete(self, app_id: str, room_id: str) -> None:
         """Delete a dynamic room (static rooms cannot be deleted)"""
         await self._api._request("DELETE", f"/apps/{app_id}/rooms/{room_id}")
+
+    async def grant_actor(
+        self, app_id: str, room_id: str, data: RoomActorAccessCreate
+    ) -> RoomActorAccess:
+        """Grant an actor access to a room (room-level ACL).
+
+        The first grant makes the room private — after that the broker only
+        admits actors with an explicit, unexpired grant. Pass ``actor_token_id``
+        (a token in this project) or ``actor_type`` (a type label).
+        """
+        result = await self._api._request(
+            "POST", f"/apps/{app_id}/rooms/{room_id}/actors", json=data.to_dict()
+        )
+        return RoomActorAccess.from_dict(result)
+
+    async def list_actors(
+        self, app_id: str, room_id: str
+    ) -> list[RoomActorAccess]:
+        """List a room's actor grants"""
+        data = await self._api._request(
+            "GET", f"/apps/{app_id}/rooms/{room_id}/actors"
+        )
+        return [RoomActorAccess.from_dict(item) for item in data]
+
+    async def revoke_actor(
+        self, app_id: str, room_id: str, room_actor_access_id: str
+    ) -> None:
+        """Revoke an actor's room access. Removing the last grant makes the room public again."""
+        await self._api._request(
+            "DELETE",
+            f"/apps/{app_id}/rooms/{room_id}/actors/{room_actor_access_id}",
+        )
 
 
 class ActorsApi:
