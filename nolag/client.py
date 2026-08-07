@@ -871,16 +871,18 @@ class NoLag:
                 filter=message.get("filter"),
             )
 
-            # Call topic handlers
+            # Call topic handlers.
+            # Iterate a snapshot: a handler may subscribe, unsubscribe, or detach
+            # a wrapper during dispatch, which mutates this set.
             if topic in self._message_handlers:
-                for handler in self._message_handlers[topic]:
+                for handler in tuple(self._message_handlers[topic]):
                     try:
                         handler(msg_data, meta)
                     except Exception as e:
                         self._log(f"Handler error: {e}")
 
-            # Call any handlers
-            for any_handler in self._any_handlers:
+            # Call any handlers (snapshot, see above)
+            for any_handler in tuple(self._any_handlers):
                 try:
                     any_handler(topic, msg_data, meta)
                 except Exception as e:
@@ -1030,9 +1032,14 @@ class NoLag:
                 await self._schedule_reconnect()
 
     def _emit_event(self, event: str, *args) -> None:
-        """Emit an event to handlers"""
+        """Emit an event to handlers.
+
+        Iterates a snapshot of the handler set. A handler is free to call on(),
+        off(), or detach a wrapper while it runs, and mutating the set mid-loop
+        would otherwise raise "Set changed size during iteration".
+        """
         if event in self._event_handlers:
-            for handler in self._event_handlers[event]:
+            for handler in tuple(self._event_handlers[event]):
                 try:
                     handler(*args)
                 except Exception as e:

@@ -261,7 +261,8 @@ class WebRTCManager:
     def _emit(self, event: str, *args) -> None:
         """Emit an event"""
         if event in self._event_handlers:
-            for handler in self._event_handlers[event]:
+            # Snapshot: a handler may register or remove handlers while running.
+            for handler in tuple(self._event_handlers[event]):
                 try:
                     result = handler(*args)
                     if asyncio.iscoroutine(result):
