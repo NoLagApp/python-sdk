@@ -82,12 +82,23 @@ class App:
 
 @dataclass
 class AppCreate:
-    """Create app request"""
+    """
+    Create app request.
+
+    ``topics`` names the topics actors may address in this app's rooms. An
+    app created without topics (and without a blueprint that supplies them)
+    refuses every subscribe with ``unknown_topic``.
+    """
     name: str
     slug: Optional[str] = None
     description: Optional[str] = None
     blueprint_id: Optional[str] = None
+    blueprint_version: Optional[str] = None
     config: Optional[dict[str, Any]] = None
+    topics: Optional[list[str]] = None
+    topic_configs: Optional[dict[str, Any]] = None
+    hydration_webhook: Optional[dict[str, Any]] = None
+    trigger_webhook: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict:
         result = {"name": self.name}
@@ -97,8 +108,18 @@ class AppCreate:
             result["description"] = self.description
         if self.blueprint_id:
             result["blueprintId"] = self.blueprint_id
+        if self.blueprint_version:
+            result["blueprintVersion"] = self.blueprint_version
         if self.config:
             result["config"] = self.config
+        if self.topics:
+            result["topics"] = self.topics
+        if self.topic_configs:
+            result["topicConfigs"] = self.topic_configs
+        if self.hydration_webhook:
+            result["hydrationWebhook"] = self.hydration_webhook
+        if self.trigger_webhook:
+            result["triggerWebhook"] = self.trigger_webhook
         return result
 
 
