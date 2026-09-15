@@ -111,6 +111,16 @@ class RoomsApi:
         result = await self._api._request("POST", f"/apps/{app_id}/rooms", json=data.to_dict())
         return Room.from_dict(result)
 
+    async def ensure(self, app_id: str, data: RoomCreate) -> Room:
+        """
+        Create the room if it does not exist, otherwise return it unchanged.
+
+        Requires ``config.autoProvisionRooms`` to be true on the app; the
+        control plane answers 403 otherwise.
+        """
+        result = await self._api._request("POST", f"/apps/{app_id}/rooms/ensure", json=data.to_dict())
+        return Room.from_dict(result)
+
     async def update(self, app_id: str, room_id: str, data: RoomUpdate) -> Room:
         """Update a room"""
         result = await self._api._request(
