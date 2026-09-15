@@ -13,13 +13,31 @@ from typing import Any, Optional, Literal
 # ============ Common Types ============
 
 @dataclass
-class PaginatedResult:
-    """Paginated API response"""
-    data: list
+class Pagination:
+    """Page metadata as the control plane returns it."""
     total: int
     page: int
-    limit: int
-    total_pages: int
+    page_count: int
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Pagination":
+        return cls(
+            total=int(data.get("total", 0)),
+            page=int(data.get("page", 1)),
+            page_count=int(data.get("pageCount", 1)),
+        )
+
+
+@dataclass
+class PaginatedResult:
+    """
+    Paginated API response: ``{ data, pagination: { total, page, pageCount } }``.
+
+    Before 2.6.0 this carried flat ``total``/``page``/``limit``/``total_pages``
+    fields that the backend never sent, so they were always the defaults.
+    """
+    data: list
+    pagination: Pagination
 
 
 @dataclass
@@ -261,7 +279,11 @@ class RoomActorAccessCreate:
 
 # ============ Actor Types ============
 
-ActorTokenType = Literal["device", "user", "server"]
+# The actor types the control plane accepts. Only "agent" and "orchestrator"
+# hold a persistent broker session.
+ActorTokenType = Literal[
+    "device", "user", "service", "session", "agent", "orchestrator", "observer"
+]
 
 
 @dataclass

@@ -18,6 +18,7 @@ from .api_types import (
     NoLagApiOptions,
     ListOptions,
     PaginatedResult,
+    Pagination,
     ApiError,
     App,
     AppCreate,
@@ -61,10 +62,7 @@ class AppsApi:
         data = await self._api._request("GET", "/apps", params=params)
         return PaginatedResult(
             data=[App.from_dict(item) for item in data.get("data", [])],
-            total=data.get("total", 0),
-            page=data.get("page", 1),
-            limit=data.get("limit", 10),
-            total_pages=data.get("totalPages", 1),
+            pagination=Pagination.from_dict(data.get("pagination", {})),
         )
 
     async def get(self, app_id: str) -> App:
@@ -204,10 +202,7 @@ class ScopesApi:
         data = await self._api._request("GET", "/scopes", params=params)
         return PaginatedResult(
             data=[Scope.from_dict(item) for item in data.get("data", [])],
-            total=data.get("total", 0),
-            page=data.get("page", 1),
-            limit=data.get("limit", 10),
-            total_pages=data.get("totalPages", 1),
+            pagination=Pagination.from_dict(data.get("pagination", {})),
         )
 
     async def get(self, scope_id: str) -> Scope:

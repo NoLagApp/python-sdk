@@ -655,7 +655,8 @@ class NoLag:
         For message topics: the full topic path
         """
         if (event in ("connect", "disconnect", "reconnect", "error",
-                     "presence:join", "presence:leave", "presence:update")
+                     "presence:join", "presence:leave", "presence:update",
+                     "presence:waking", "presenceList", "hydration")
                 or event.startswith("lobby:") or event.startswith("lobbyPresence:")
                 or event.startswith("lobbySubscribed:") or event.startswith("lobbyPresenceList:")):
             if event not in self._event_handlers:
@@ -937,6 +938,15 @@ class NoLag:
                 self._emit_event("presence:update", actor)
                 if event == "waking":
                     self._emit_event("presence:waking", actor)
+            return
+
+        # Hydration: the broker forwards the hydration webhook's response body
+        # once per subscribe. `topic` is the bare topic name. Surfaced as its
+        # own event so a consumer can tell "state on join" from live traffic.
+        if msg_type == "hydration":
+            self._emit_event(
+                "hydration", message.get("topic", ""), message.get("data")
+            )
             return
 
         # Handle presenceList response

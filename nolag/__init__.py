@@ -23,6 +23,7 @@ from .api_types import (
     NoLagApiOptions,
     ListOptions,
     PaginatedResult,
+    Pagination,
     ApiError,
     App,
     AppCreate,
@@ -54,7 +55,7 @@ except ImportError:
     def is_webrtc_available() -> bool:  # type: ignore[no-redef]
         return False
 
-__version__ = "2.5.0"
+__version__ = "2.6.0"
 __all__ = [
     "NoLagEncodeError",
     "NoLagServerError",
@@ -77,6 +78,7 @@ __all__ = [
     "NoLagApiOptions",
     "ListOptions",
     "PaginatedResult",
+    "Pagination",
     "ApiError",
     "App",
     "AppCreate",
